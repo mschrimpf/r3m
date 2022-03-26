@@ -1,7 +1,9 @@
 import functools
 
-from model_tools.activations.pytorch import PytorchWrapper, load_preprocess_images
+import numpy as np
+from model_tools.activations.pytorch import PytorchWrapper, load_images
 from model_tools.check_submission import check_models
+from torchvision import transforms as T
 
 from r3m import load_r3m
 
@@ -34,10 +36,28 @@ def get_model(name):
     model = load_r3m(modelid).module
 
     image_size = 224
-    preprocessing = functools.partial(load_preprocess_images, image_size=image_size)
+    preprocessing = functools.partial(load_preprocess_images, crop_size=image_size)
     wrapper = PytorchWrapper(identifier=name, model=model, preprocessing=preprocessing)
     wrapper.image_size = image_size
     return wrapper
+
+
+def load_preprocess_images(image_filepaths, crop_size):
+    """
+    define custom pre-processing here since R3M does not normalize like other models
+    :seealso: r3m/example.py
+    """
+    images = load_images(image_filepaths)
+    # preprocessing
+    transforms = T.Compose([
+        T.Resize(256),
+        T.CenterCrop(crop_size),
+        T.ToTensor(),  # ToTensor() divides by 255
+        lambda img: img.unsqueeze(0),
+    ])
+    images = [transforms(image) * 255.0 for image in images]  # R3M expects image input to be [0-255]
+    images = np.concatenate(images)
+    return images
 
 
 def get_layers(name):
